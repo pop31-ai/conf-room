@@ -12,8 +12,8 @@ const path = require('path');
 /** @type {BrowserWindow|null} Текущее окно приложения */
 let mainWindow = null;
 
-/** URL веб-клиента (по умолчанию локальный сервер) */
-const WEB_URL = process.env.CONF_URL || 'http://localhost:8080';
+/** URL веб-клиента (по умолчанию — сервер конференций) */
+const WEB_URL = process.env.CONF_URL || 'https://87.242.117.240:8443';
 
 /**
  * Создаёт главное окно приложения
@@ -21,6 +21,8 @@ const WEB_URL = process.env.CONF_URL || 'http://localhost:8080';
  * для работы с локальными ресурсами.
  */
 function createWindow() {
+  app.setName('Конференц-комната');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -30,10 +32,9 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // Разрешаем доступ к камере/микрофону
+      preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
       allowRunningInsecureContent: false,
-      // Включаем WebRTC
       webviewTag: false
     }
   });

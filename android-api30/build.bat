@@ -1,0 +1,11 @@
+@echo off
+echo Building Android APK (API 30 / Android 11)...
+cd /d "%~dp0"
+if not exist "gradlew.bat" (
+    echo Creating Gradle wrapper...
+    gradle wrapper --gradle-version 8.4 2>nul
+)
+call gradlew.bat assembleDebug
+echo.
+echo APK: android-api30\app\build\outputs\apk\debug\app-debug.apk
+pause
