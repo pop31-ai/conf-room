@@ -1,0 +1,5 @@
+/**
+ * @fileoverview settings.gradle — настройки проекта
+ */
+rootProject.name = "ConfRoom"
+include ':app'

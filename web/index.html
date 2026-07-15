@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Голосовая комната</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Lobby -->
+  <div id="lobby-screen" class="screen">
+    <div class="lobby-card">
+      <h1>Голосовая комната</h1>
+      <p class="subtitle">Договоритесь о коде в прихожей</p>
+      <div class="input-group">
+        <label for="input-code">Код комнаты</label>
+        <input type="text" id="input-code" placeholder="Например: 1234" maxlength="20" autocomplete="off" autofocus>
+      </div>
+      <div class="input-group">
+        <label for="input-ttl">Время (минут)</label>
+        <input type="number" id="input-ttl" value="10" min="1" max="720">
+      </div>
+      <button id="btn-join" class="btn-primary">Войти</button>
+      <p class="hint">Код — просто число или слово</p>
+    </div>
+  </div>
+
+  <!-- Room -->
+  <div id="room-screen" class="screen hidden">
+    <div class="room-header">
+      <div id="status-text" class="status">Подключение...</div>
+      <div id="quality-display" class="quality">Качество: ●●●●●●●●●● (10/10)</div>
+      <div id="timer-display" class="timer">⏱ --:--:--</div>
+    </div>
+
+    <div class="room-body">
+      <div id="peers-list" class="peers-list"></div>
+      <div class="chat-panel">
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Сообщение..." maxlength="1000">
+          <button id="btn-send-chat" class="btn-send">→</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Панель управления — кнопки с отступом чтобы не нажать случайно -->
+    <div class="controls">
+      <button id="btn-toggle-audio" class="control-btn mic-btn" title="Микрофон">🎤</button>
+      <div class="controls-spacer"></div>
+      <label class="control-btn file-btn" title="Файл">📎<input type="file" id="file-input" style="display:none" accept="*/*"></label>
+      <div class="controls-spacer-lg"></div>
+      <button id="btn-leave" class="control-btn leave" title="Выйти">✕</button>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

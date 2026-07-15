@@ -1,0 +1,11 @@
+node_modules/
+server/node_modules/
+server/web/uploads/
+*.pem
+*.key
+*.pub
+id_rsa*
+ip.txt
+.env
+.DS_Store
+Thumbs.db

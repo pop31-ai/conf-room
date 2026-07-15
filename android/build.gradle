@@ -1,0 +1,21 @@
+/**
+ * @fileoverview Корневой build.gradle для Android-проекта
+ * @description Настраивает репозитории и зависимости для сборки APK
+ */
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.1.0'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
