@@ -51,9 +51,9 @@ async function joinRoom() {
     state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const src = state.audioCtx.createMediaStreamSource(state.micStream);
 
-    const desired = Math.floor(state.audioCtx.sampleRate * 0.02);
+    const desired = Math.floor(state.audioCtx.sampleRate * 0.04);
     let bufSize = 256;
-    while (bufSize < desired && bufSize < 4096) bufSize *= 2;
+    while (bufSize < desired && bufSize < 8192) bufSize *= 2;
     state.processor = state.audioCtx.createScriptProcessor(bufSize, 1, 1);
 
     state.processor.onaudioprocess = (e) => {
@@ -68,16 +68,16 @@ async function joinRoom() {
       }
 
       const wasActive = state.micActive;
-      state.micActive = peak >= 0.008;
+      state.micActive = peak >= 0.01;
       if (wasActive !== state.micActive && state.playGain) {
         state.playGain.gain.setTargetAtTime(
           state.micActive ? 0.6 : 1, state.audioCtx.currentTime, 0.1
         );
       }
 
-      if (peak < 0.008) return;
+      if (peak < 0.01) return;
 
-      const targetRate = 4000;
+      const targetRate = 8000;
       const srcRate = state.audioCtx.sampleRate;
       let samples;
       if (srcRate !== targetRate) {
@@ -230,7 +230,7 @@ function playRemoteAudio(data) {
     for (let i = 0; i < int16.length; i++) {
       float32[i] = int16[i] / 32768;
     }
-    const buf = state.audioCtx.createBuffer(1, float32.length, 4000);
+    const buf = state.audioCtx.createBuffer(1, float32.length, 8000);
     buf.getChannelData(0).set(float32);
 
     const rxLamp = document.getElementById('rx-lamp');
