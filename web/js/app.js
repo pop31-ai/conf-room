@@ -287,15 +287,6 @@ function schedulePlayback() {
   }
 
   const buf = state.playQueue.shift();
-  const ch = buf.getChannelData(0);
-  const len = ch.length;
-  const fadeLen = Math.min(48, Math.floor(len / 6));
-
-  for (let i = 0; i < fadeLen; i++) {
-    const f = i / fadeLen;
-    ch[i] *= f;
-    ch[len - 1 - i] *= f;
-  }
 
   const src = state.audioCtx.createBufferSource();
   src.buffer = buf;
