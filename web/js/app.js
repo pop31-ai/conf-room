@@ -68,14 +68,14 @@ async function joinRoom() {
       }
 
       const wasActive = state.micActive;
-      state.micActive = peak >= 0.015;
+      state.micActive = peak >= 0.008;
       if (wasActive !== state.micActive && state.playGain) {
         state.playGain.gain.setTargetAtTime(
-          state.micActive ? 0.25 : 1, state.audioCtx.currentTime, 0.05
+          state.micActive ? 0.15 : 1, state.audioCtx.currentTime, 0.05
         );
       }
 
-      if (peak < 0.015) return;
+      if (peak < 0.008) return;
 
       const targetRate = 4000;
       const srcRate = state.audioCtx.sampleRate;
@@ -238,7 +238,7 @@ function playRemoteAudio(data) {
 
     state.playQueue.push(buf);
 
-    while (state.playQueue.length > 6) {
+    while (state.playQueue.length > 10) {
       state.playQueue.shift();
     }
 
