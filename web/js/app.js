@@ -279,24 +279,52 @@ function updateQualityIndicator(q) {
   el.textContent = 'Качество: ' + q + '/10';
 }
 
+let playGainNode = null;
+let xfadeGainA = null;
+let xfadeGainB = null;
+let xfadeToggle = false;
+
 function schedulePlayback() {
   if (state.playQueue.length === 0) {
     playTimerId = null;
     return;
   }
 
+  if (!playGainNode) {
+    playGainNode = state.audioCtx.createGain();
+    xfadeGainA = state.audioCtx.createGain();
+    xfadeGainB = state.audioCtx.createGain();
+    xfadeGainA.connect(playGainNode);
+    xfadeGainB.connect(playGainNode);
+    playGainNode.connect(state.playGain);
+  }
+
   const buf = state.playQueue.shift();
+  const fadeLen = Math.min(0.008, buf.duration * 0.15);
 
   const src = state.audioCtx.createBufferSource();
   src.buffer = buf;
-  src.connect(state.playGain);
+
+  const gA = xfadeToggle ? xfadeGainA : xfadeGainB;
+  const gB = xfadeToggle ? xfadeGainB : xfadeGainA;
+  xfadeToggle = !xfadeToggle;
+
+  src.connect(gA);
 
   const now = state.audioCtx.currentTime;
-  const delay = state.nextPlayTime > now ? (state.nextPlayTime - now) * 0.5 : 0;
-  src.start(now + delay);
-  state.nextPlayTime = now + delay + buf.duration;
+  const start = state.nextPlayTime > now ? state.nextPlayTime : now;
 
-  playTimerId = setTimeout(schedulePlayback, (buf.duration * 0.5) * 1000);
+  gA.gain.setValueAtTime(0, start);
+  gA.gain.linearRampToValueAtTime(1, start + fadeLen);
+  gA.gain.setValueAtTime(1, start + buf.duration - fadeLen);
+  gA.gain.linearRampToValueAtTime(0, start + buf.duration);
+
+  src.start(start);
+  src.stop(start + buf.duration + 0.01);
+
+  state.nextPlayTime = start + buf.duration * 0.85;
+
+  playTimerId = setTimeout(schedulePlayback, Math.max(30, state.nextPlayTime - state.audioCtx.currentTime - 0.02) * 1000);
 }
 
 // ============================================================
@@ -492,6 +520,10 @@ function cleanup() {
   if (state.audioCtx) { try { state.audioCtx.close(); } catch (e) {} state.audioCtx = null; }
   if (state.ws) { try { state.ws.close(); } catch (e) {} state.ws = null; }
   if (state.playGain) { try { state.playGain.disconnect(); } catch (e) {} state.playGain = null; }
+  if (playGainNode) { try { playGainNode.disconnect(); } catch (e) {} playGainNode = null; }
+  if (xfadeGainA) { try { xfadeGainA.disconnect(); } catch (e) {} xfadeGainA = null; }
+  if (xfadeGainB) { try { xfadeGainB.disconnect(); } catch (e) {} xfadeGainB = null; }
+  xfadeToggle = false;
   state.peerId = null;
   state.currentRoom = null;
   state.nextPlayTime = 0;
