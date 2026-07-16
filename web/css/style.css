@@ -17,6 +17,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* Room */
 #room-screen{flex-direction:column;height:100vh;display:flex}
 .room-header{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--surface2);gap:8px;flex-shrink:0}
+.audio-indicator{display:flex;gap:6px;align-items:center}
+.lamp{font-size:1.1rem;opacity:0.3;transition:opacity .1s}
+.lamp.on{opacity:1;filter:drop-shadow(0 0 4px #4caf50)}
 .status{font-size:.85rem;color:var(--text2)}
 .quality{font-size:.75rem;font-weight:600;font-variant-numeric:tabular-nums}
 .timer{font-size:.9rem;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}

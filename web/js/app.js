@@ -110,6 +110,9 @@ async function joinRoom() {
       }
 
       state.ws.send(samples.buffer);
+
+      const micLamp = document.getElementById('mic-lamp');
+      if (micLamp) { micLamp.classList.add('on'); clearTimeout(state._micLampOff); state._micLampOff = setTimeout(() => micLamp.classList.remove('on'), 150); }
     };
 
     src.connect(state.processor);
@@ -230,6 +233,9 @@ function playRemoteAudio(data) {
     }
     const buf = state.audioCtx.createBuffer(1, float32.length, 4000);
     buf.getChannelData(0).set(float32);
+
+    const rxLamp = document.getElementById('rx-lamp');
+    if (rxLamp) { rxLamp.classList.add('on'); clearTimeout(state._rxLampOff); state._rxLampOff = setTimeout(() => rxLamp.classList.remove('on'), 150); }
 
     const now = Date.now();
     state.packetTimes.push(now);
