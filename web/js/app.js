@@ -71,7 +71,7 @@ async function joinRoom() {
       state.micActive = peak >= 0.008;
       if (wasActive !== state.micActive && state.playGain) {
         state.playGain.gain.setTargetAtTime(
-          state.micActive ? 0.15 : 1, state.audioCtx.currentTime, 0.05
+          state.micActive ? 0.6 : 1, state.audioCtx.currentTime, 0.1
         );
       }
 
