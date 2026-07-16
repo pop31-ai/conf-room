@@ -23,6 +23,7 @@ function init() {
   document.getElementById('file-input').addEventListener('change', handleFileUpload);
   document.getElementById('chat-input').addEventListener('keypress', e => { if (e.key === 'Enter') sendChatMessage(); });
   document.getElementById('input-code').addEventListener('keypress', e => { if (e.key === 'Enter') joinRoom(); });
+  initSpeakerToggle();
 }
 
 // ============================================================
@@ -283,6 +284,39 @@ function schedulePlayback() {
   state.nextPlayTime = now + delay + buf.duration;
 
   playTimerId = setTimeout(schedulePlayback, (buf.duration * 0.5) * 1000);
+}
+
+// ============================================================
+// Переключатель трубка/динамик (только Android)
+// ============================================================
+
+let isEarpiece = true;
+
+function initSpeakerToggle() {
+  if (!window.AndroidAudio) return;
+  const btn = document.getElementById('btn-toggle-speaker');
+  btn.classList.remove('hidden');
+  isEarpiece = window.AndroidAudio.isEarpiece();
+  updateSpeakerBtn();
+  btn.addEventListener('click', toggleSpeaker);
+}
+
+function toggleSpeaker() {
+  if (!window.AndroidAudio) return;
+  if (isEarpiece) {
+    window.AndroidAudio.setSpeaker();
+    isEarpiece = false;
+  } else {
+    window.AndroidAudio.setEarpiece();
+    isEarpiece = true;
+  }
+  updateSpeakerBtn();
+}
+
+function updateSpeakerBtn() {
+  const btn = document.getElementById('btn-toggle-speaker');
+  btn.textContent = isEarpiece ? '📞' : '🔊';
+  btn.title = isEarpiece ? 'Трубка (нажмите для динамика)' : 'Динамик (нажмите для трубки)';
 }
 
 // ============================================================

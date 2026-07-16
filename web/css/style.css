@@ -55,6 +55,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .controls-spacer-lg{flex:3}
 
 .mic-btn{margin-left:4px}
+.speaker-btn{margin-left:0}
 .file-btn{margin-left:0}
 .file-btn.leave{margin-left:0}
 
