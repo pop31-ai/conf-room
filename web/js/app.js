@@ -51,9 +51,9 @@ async function joinRoom() {
     state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const src = state.audioCtx.createMediaStreamSource(state.micStream);
 
-    const desired = Math.floor(state.audioCtx.sampleRate * 0.04);
+    const desired = Math.floor(state.audioCtx.sampleRate * 0.02);
     let bufSize = 256;
-    while (bufSize < desired && bufSize < 8192) bufSize *= 2;
+    while (bufSize < desired && bufSize < 4096) bufSize *= 2;
     state.processor = state.audioCtx.createScriptProcessor(bufSize, 1, 1);
 
     state.processor.onaudioprocess = (e) => {
