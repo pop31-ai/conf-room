@@ -1,0 +1,118 @@
+@startuml Deployment Diagram
+
+title Деплой-диаграмма системы Voice Conference
+
+skinparam backgroundColor #1a1a2e
+skinparam defaultFontColor #e0e0e0
+skinparam defaultFontSize 12
+skinparam arrowColor #00d4aa
+skinparam nodeBackgroundColor #16213e
+skinparam nodeBorderColor #0f3460
+skinparam noteBackgroundColor #0f3460
+skinparam noteBorderColor #533483
+skinparam artifactBackgroundColor #0f3460
+skinparam databaseBackgroundColor #1a1a2e
+
+node "Sber Cloud VM\n(Debian 12, 1 vCPU, 1 GB RAM)" as vm #16213e {
+  node "systemd\nconf-server.service\nRestart=always" as systemd #0f3460 {
+    artifact "server.js\n(Node.js 18)\nExpress + WS" as server #0f3460
+    database "RAM\n(комнаты, файлы, WS)" as ram #1a1a2e
+  }
+
+  node "/opt/conf-server/" as files #0f3460 {
+    folder "ssl/" as ssl {
+      artifact "key.pem\n(RSA 2048)" as key
+      artifact "cert.pem\n(365 дней)" as cert
+    }
+    folder "web/" as web {
+      artifact "index.html\n(lobby + room)" as html
+      artifact "css/style.css\n(dark theme)" as css
+      artifact "js/app.js\n(аудио, WS, UI)" as appjs
+    }
+    folder "uploads/\n(TTL 12ч)" as uploads
+  }
+
+  server -right-> ram
+  server -down-> files
+}
+
+cloud "Интернет" as internet #16213e
+
+node "Клиент 1: Android 11+\n(Chrome WebView)" as android11 #0f3460 {
+  artifact "android-api30/\nMainActivity.java\nAudioManager earpiece" as a11
+  artifact "WebView\ngetUserMedia" as wv11
+  a11 -down-> wv11
+}
+
+node "Клиент 2: Android 8+\n(Chrome WebView)" as android8 #0f3460 {
+  artifact "android-api26/\nMainActivity.java\nAudioManager earpiece" as a8
+  artifact "WebView\ngetUserMedia" as wv8
+  a8 -down-> wv8
+}
+
+node "Клиент 3: Web\n(Chrome/Firefox)" as web #0f3460 {
+  artifact "index.html\n+ js/app.js\nScriptProcessorNode" as wb
+}
+
+node "Клиент 4: Windows\n(Electron v33)" as win #0f3460 {
+  artifact "desktop/main.js\nBrowserWindow" as ew
+  artifact "preload.js\nContext Bridge" as ep
+  ew -right-> ep
+}
+
+node "Клиент 5: Linux\n(Electron AppImage)" as linux #0f3460 {
+  artifact "desktop/main.js\n(NSSA)" as lw
+  artifact "preload.js\nContext Bridge" as lp
+  lw -right-> lp
+}
+
+android11 -down-> internet : HTTPS/WSS\nport 8443
+android8 -down-> internet
+web -down-> internet
+win -down-> internet
+linux -down-> internet
+internet -up-> vm : TCP 8443 (HTTPS/WSS)\nTCP 8080 (HTTP→redirect)\nTCP 22 (SSH, admin IP only)
+
+note right of vm
+  **Порты**
+  8443 — HTTPS + WSS
+  8080 — HTTP → redirect
+  22 — SSH (администратор)
+
+  **Firewall**
+  Security Groups (облачный)
+  iptables ( netfilter,默认)
+  UFW НЕ установлен
+end note
+
+note bottom of android11
+  **Android 11+ (API 30)**
+  AudioManager:
+  MODE_IN_COMMUNICATION
+  setSpeakerphoneOn(false)
+  JS Bridge: AndroidAudio
+end note
+
+note bottom of android8
+  **Android 8+ (API 26)**
+  AudioManager:
+  setMode(IN_COMMUNICATION)
+  setSpeakerphoneOn(false)
+  JS Bridge: AndroidAudio
+end note
+
+note bottom of win
+  **Windows**
+  Electron v33
+  electron-builder
+  NSIS installer (.exe)
+end note
+
+note bottom of linux
+  **Linux/AstraLinux**
+  Electron v33
+  electron-builder
+  AppImage + .deb
+end note
+
+@enduml

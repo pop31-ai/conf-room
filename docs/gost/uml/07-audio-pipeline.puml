@@ -1,0 +1,92 @@
+@startuml Audio Pipeline
+
+title Архитектура голосового тракта\n(Клиент → Сервер → Клиент)
+
+skinparam backgroundColor #1a1a2e
+skinparam defaultFontColor #e0e0e0
+skinparam defaultFontSize 12
+skinparam arrowColor #00d4aa
+skinparam packageBackgroundColor #16213e
+skinparam packageBorderColor #0f3460
+skinparam noteBackgroundColor #0f3460
+skinparam noteBorderColor #533483
+
+rectangle "Участник A (Отправитель)" as A #16213e {
+  rectangle "getUserMedia()\naudio: true" as mic #0f3460
+  rectangle "MediaStreamSource" as mss #0f3460
+  rectangle "ScriptProcessorNode\n40ms буфер" as spn #0f3460
+  rectangle "Silence Gate\npeak < 0.01 → skip" as gate #0f3460
+  rectangle "Fade-in\n4 сэмпла" as fade #0f3460
+  rectangle "Ресемплинг\n44.1/48 kHz → 8 kHz" as resample #0f3460
+  rectangle "Кодирование\nFloat32 → Int16" as enc #0f3460
+  rectangle "WebSocket\nbinary frame" as wsA #0f3460
+
+  mic -down-> mss
+  mss -down-> spn
+  spn -down-> gate
+  gate -down-> fade
+  fade -down-> resample
+  resample -down-> enc
+  enc -down-> wsA
+}
+
+rectangle "Сервер (Node.js)\n87.242.117.240:8443" as server #16213e {
+  rectangle "WebSocket\nServer (ws)" as wsS #0f3460
+  rectangle "broadcastBinary()\npeer.send(data)\npeer !== sender" as relay #0f3460
+  rectangle "Backpressure Check\nbufferedAmount < 2MB" as bp #0f3460
+
+  wsS -down-> relay
+  relay -down-> bp
+}
+
+rectangle "Участник B (Получатель)" as B #16213e {
+  rectangle "WebSocket\nbinary frame" as wsB #0f3460
+  rectangle "Декодирование\nInt16 → Float32" as dec #0f3460
+  rectangle "AudioBuffer\ncreateBuffer(1, N, 8000)" as ab #0f3460
+  rectangle "Jitter Buffer\n10 чанков (400мс)" as jb #0f3460
+  rectangle "Планирование\nsource.start(nextTime)\noverlap 10%" as sched #0f3460
+  rectangle "Audio Ducking\nplayGain: 0.6 / 1.0" as duck #0f3460
+  rectangle "AudioBufferSourceNode\n→ destination (динамик)" as play #0f3460
+
+  wsB -down-> dec
+  dec -down-> ab
+  ab -down-> jb
+  jb -down-> sched
+  sched -down-> duck
+  duck -down-> play
+}
+
+wsA -right-> wsS : wss://87.242.117.240:8443\nbinary frame\n640 байт (320 × Int16)
+bp -right-> wsB : broadcast
+
+note right of spn
+  **ScriptProcessorNode**
+  Нативная частота устройства
+  onaudioprocess вызывается
+  каждые 256-8192 сэмплов
+end note
+
+note right of jb
+  **Jitter Buffer**
+  Фиксированный: 10 чанков
+  Выдерживает jitter до 400мс
+  Критично для мобильных 4G
+end note
+
+note right of duck
+  **Audio Ducking**
+  Пик микрофона ≥ 0.01:
+  playGain → 0.6
+  Иначе: playGain → 1.0
+  Подавление echo loop
+end note
+
+note bottom of relay
+  **Маршрутизация**
+  1. Только binary frames
+  2. Каждому пиру кроме sender
+  3. Приоритет: voice > chat
+  4. Backpressure: 2MB порог
+end note
+
+@enduml
