@@ -12,7 +12,8 @@ const UPLOAD_URL = `${location.origin}/upload`;
 const state = {
   ws: null, peerId: null, currentRoom: null, audioEnabled: true,
   audioCtx: null, processor: null, micStream: null, nextPlayTime: 0,
-  playQueue: [], netQuality: 5, packetTimes: [], lastPacketTime: 0
+  playQueue: [], netQuality: 5, packetTimes: [], lastPacketTime: 0,
+  playGain: null, micActive: false
 };
 
 function init() {
@@ -31,6 +32,8 @@ function init() {
 // ============================================================
 
 async function joinRoom() {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) return;
+  if (state.ws) { try { state.ws.close(); } catch (e) {} state.ws = null; }
   const code = document.getElementById('input-code').value.trim();
   if (!code) { alert('Введите код комнаты'); return; }
   const ttl = (parseInt(document.getElementById('input-ttl').value) || 10) * 60 * 1000;
@@ -63,6 +66,15 @@ async function joinRoom() {
         const v = Math.abs(input[i]);
         if (v > peak) peak = v;
       }
+
+      const wasActive = state.micActive;
+      state.micActive = peak >= 0.015;
+      if (wasActive !== state.micActive && state.playGain) {
+        state.playGain.gain.setTargetAtTime(
+          state.micActive ? 0.25 : 1, state.audioCtx.currentTime, 0.05
+        );
+      }
+
       if (peak < 0.015) return;
 
       const targetRate = 4000;
@@ -101,10 +113,9 @@ async function joinRoom() {
     };
 
     src.connect(state.processor);
-    const silentGain = state.audioCtx.createGain();
-    silentGain.gain.value = 0;
-    state.processor.connect(silentGain);
-    silentGain.connect(state.audioCtx.destination);
+    const sink = state.audioCtx.createGain();
+    sink.gain.value = 0;
+    state.processor.connect(sink);
   } catch (micErr) {
     console.warn('Микрофон недоступен, режим только чтения:', micErr.message);
   }
@@ -205,6 +216,11 @@ function playRemoteAudio(data) {
   if (!state.audioCtx) {
     state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
+  if (!state.playGain) {
+    state.playGain = state.audioCtx.createGain();
+    state.playGain.gain.value = 1;
+    state.playGain.connect(state.audioCtx.destination);
+  }
   try {
     const int16 = new Int16Array(data);
     const float32 = new Float32Array(int16.length);
@@ -276,7 +292,7 @@ function schedulePlayback() {
 
   const src = state.audioCtx.createBufferSource();
   src.buffer = buf;
-  src.connect(state.audioCtx.destination);
+  src.connect(state.playGain);
 
   const now = state.audioCtx.currentTime;
   const delay = state.nextPlayTime > now ? (state.nextPlayTime - now) * 0.5 : 0;
@@ -478,6 +494,7 @@ function cleanup() {
   if (state.micStream) { state.micStream.getTracks().forEach(t => t.stop()); state.micStream = null; }
   if (state.audioCtx) { try { state.audioCtx.close(); } catch (e) {} state.audioCtx = null; }
   if (state.ws) { try { state.ws.close(); } catch (e) {} state.ws = null; }
+  if (state.playGain) { try { state.playGain.disconnect(); } catch (e) {} state.playGain = null; }
   state.peerId = null;
   state.currentRoom = null;
   state.nextPlayTime = 0;
@@ -485,6 +502,7 @@ function cleanup() {
   state.packetTimes = [];
   state.netQuality = 5;
   state.lastPacketTime = 0;
+  state.micActive = false;
   if (playTimerId) { clearTimeout(playTimerId); playTimerId = null; }
   document.getElementById('chat-messages').innerHTML = '';
   document.getElementById('peers-list').innerHTML = '';
