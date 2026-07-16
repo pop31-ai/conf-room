@@ -116,6 +116,7 @@ async function joinRoom() {
     const sink = state.audioCtx.createGain();
     sink.gain.value = 0;
     state.processor.connect(sink);
+    sink.connect(state.audioCtx.destination);
   } catch (micErr) {
     console.warn('Микрофон недоступен, режим только чтения:', micErr.message);
   }
