@@ -100,12 +100,11 @@ async function joinRoom() {
       }
 
       const ch = samples.length;
-      if (ch > 32) {
-        const fadeLen = Math.min(16, Math.floor(ch / 4));
+      if (ch > 64) {
+        const fadeLen = Math.min(4, Math.floor(ch / 8));
         for (let i = 0; i < fadeLen; i++) {
           const f = i / fadeLen;
           samples[i] = Math.round(samples[i] * f);
-          samples[ch - 1 - i] = Math.round(samples[ch - 1 - i] * f);
         }
       }
 
