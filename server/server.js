@@ -224,8 +224,8 @@ wss.on('connection', (ws) => {
     room.peers.forEach((s, id) => {
       if (id === excludeId) return;
       if (s.readyState !== s.OPEN) return;
-      if (s.bufferedAmount > 512 * 1024) {
-        s.terminate();
+      if (s.bufferedAmount > 2 * 1024 * 1024) {
+        try { s.close(); } catch (e) {}
         return;
       }
       try { s.send(data); } catch (e) {

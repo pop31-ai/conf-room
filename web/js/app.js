@@ -219,9 +219,8 @@ function playRemoteAudio(data) {
     updateNetQuality(now);
 
     state.playQueue.push(buf);
-    const jitterBuf = Math.max(2, Math.min(8, state.netQuality < 3 ? 6 : state.netQuality < 7 ? 4 : 2));
 
-    while (state.playQueue.length > jitterBuf) {
+    while (state.playQueue.length > 4) {
       state.playQueue.shift();
     }
 
