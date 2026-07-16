@@ -125,8 +125,31 @@ async function joinRoom() {
     try { handleMsg(JSON.parse(event.data)); } catch (e) {}
   };
 
-  state.ws.onclose = () => { setStatus('Соединение потеряно'); cleanup(); };
-  state.ws.onerror = () => { setStatus('Ошибка соединения'); };
+  state.ws.onclose = () => {
+    if (state.currentRoom && state.peerId) {
+      setStatus('Переподключение...');
+      setTimeout(() => {
+        if (state.currentRoom && !state.ws) {
+          const code = state.currentRoom;
+          state.ws = new WebSocket(SIGNAL_URL);
+          state.ws.binaryType = 'arraybuffer';
+          state.ws.onopen = () => {
+            state.ws.send(JSON.stringify({ type: 'join', code, ttl }));
+          };
+          state.ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) { playRemoteAudio(event.data); return; }
+            try { handleMsg(JSON.parse(event.data)); } catch (e) {}
+          };
+          state.ws.onclose = () => { setStatus('Соединение потеряно'); cleanup(); };
+          state.ws.onerror = () => {};
+        }
+      }, 2000);
+    } else {
+      setStatus('Соединение потеряно');
+      cleanup();
+    }
+  };
+  state.ws.onerror = () => {};
 }
 
 // ============================================================
@@ -301,10 +324,40 @@ function addFileMessage(peerId, name, url, size, ts) {
   const m = document.createElement('div');
   m.className = 'chat-message file-message';
   const t = new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  m.innerHTML = '<div class="chat-sender">' + peerId.slice(0, 8) + '</div><div class="chat-file"><a href="' + url + '" target="_blank" download="' + esc(name) + '">📎 ' + esc(name) + ' (' + (size / 1024).toFixed(1) + ' КБ)</a></div><div class="chat-time">' + t + '</div>';
+  const fullUrl = url.startsWith('http') ? url : location.origin + url;
+  m.innerHTML = '<div class="chat-sender">' + peerId.slice(0, 8) + '</div><div class="chat-file"><a href="' + fullUrl + '" target="_blank" download="' + esc(name) + '" onclick="return downloadFile(this)">📎 ' + esc(name) + ' (' + (size / 1024).toFixed(1) + ' КБ)</a></div><div class="chat-time">' + t + '</div>';
   const ch = document.getElementById('chat-messages');
   ch.appendChild(m);
   ch.scrollTop = ch.scrollHeight;
+}
+
+function downloadFile(link) {
+  const url = link.href;
+  const name = link.getAttribute('download');
+  fetch(url).then(r => {
+    if (!r.ok) throw new Error(r.status);
+    return r.blob();
+  }).then(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }).catch(err => {
+    fetch(url).then(r => {
+      if (!r.ok) throw new Error('Повтор не удался');
+      return r.blob();
+    }).then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }).catch(() => alert('Не удалось скачать файл. Попробуйте ещё раз.'));
+  });
+  return false;
 }
 
 // ============================================================

@@ -38,6 +38,13 @@ const SSL_CERT = path.join(__dirname, 'ssl', 'cert.pem');
 // ============================================================
 
 const app = express();
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Access-Control-Allow-Origin', '*');
+  next();
+});
 app.use(express.static(WEB_DIR));
 app.use('/files', express.static(UPLOAD_DIR));
 
@@ -63,7 +70,51 @@ app.post('/upload', upload.single('file'), (req, res) => {
   setTimeout(() => {
     try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
   }, ttl);
-  res.json({ url: '/files/' + req.file.filename, name: req.file.originalname, size: req.file.size, ttl });
+  res.json({ url: '/download/' + req.file.filename, name: req.file.originalname, size: req.file.size, ttl });
+});
+
+/**
+ * GET /download/:filename — скачивание файла с правильными заголовками
+ * Поддерживает Range-запросы (для продолжения обрванной загрузки)
+ */
+app.get('/download/:filename', (req, res) => {
+  const filePath = path.join(UPLOAD_DIR, req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Файл не найден' });
+  const stat = fs.statSync(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+    '.mp4': 'video/mp4', '.webm': 'video/webm', '.avi': 'video/x-msvideo',
+    '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
+    '.pdf': 'application/pdf', '.zip': 'application/zip',
+    '.txt': 'text/plain', '.json': 'application/json'
+  };
+  const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+  if (req.headers.range) {
+    const parts = req.headers.range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+    const chunkSize = end - start + 1;
+    const stream = fs.createReadStream(filePath, { start, end });
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunkSize,
+      'Content-Type': contentType,
+      'Content-Disposition': 'attachment'
+    });
+    stream.pipe(res);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': stat.size,
+      'Content-Type': contentType,
+      'Content-Disposition': 'attachment',
+      'Accept-Ranges': 'bytes'
+    });
+    fs.createReadStream(filePath).pipe(res);
+  }
 });
 
 /**
@@ -149,6 +200,8 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', (ws) => {
   const peerId = uuidv4();
   let currentRoom = null;
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
 
   console.log(`[WS] + ${peerId}`);
 
@@ -156,26 +209,43 @@ wss.on('connection', (ws) => {
    * Отправить JSON-сообщение одному пиру
    */
   function sendTo(target, msg) {
-    if (target.readyState === target.OPEN) target.send(JSON.stringify(msg));
-  }
-
-  /**
-   * Рассылка JSON всем в комнате кроме отправителя
-   */
-  function broadcast(roomCode, msg, excludeId) {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    room.peers.forEach((s, id) => { if (id !== excludeId) sendTo(s, msg); });
+    if (target.readyState === target.OPEN) {
+      try { target.send(JSON.stringify(msg)); } catch (e) {}
+    }
   }
 
   /**
    * Рассылка бинарных данных (аудио) всем в комнате кроме отправителя
+   * Аудио имеет приоритет — отправляется без ожидания
    */
   function broadcastBinary(roomCode, data, excludeId) {
     const room = rooms.get(roomCode);
     if (!room) return;
     room.peers.forEach((s, id) => {
-      if (id !== excludeId && s.readyState === s.OPEN) s.send(data);
+      if (id === excludeId) return;
+      if (s.readyState !== s.OPEN) return;
+      if (s.bufferedAmount > 512 * 1024) {
+        s.terminate();
+        return;
+      }
+      try { s.send(data); } catch (e) {
+        try { s.close(); } catch (e2) {}
+      }
+    });
+  }
+
+  /**
+   * Рассылка JSON всем в комнате кроме отправителя
+   * Файлы и чат — низкий приоритет
+   */
+  function broadcastText(roomCode, msg, excludeId) {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    const json = JSON.stringify(msg);
+    room.peers.forEach((s, id) => {
+      if (id === excludeId) return;
+      if (s.readyState !== s.OPEN) return;
+      try { s.send(json); } catch (e) {}
     });
   }
 
@@ -187,7 +257,7 @@ wss.on('connection', (ws) => {
     const room = rooms.get(currentRoom);
     if (room) {
       room.peers.delete(peerId);
-      broadcast(currentRoom, { type: 'peer_left', peerId });
+      broadcastText(currentRoom, { type: 'peer_left', peerId });
       console.log(`[ROOM] ${peerId.slice(0, 8)} вышел из "${currentRoom}" (осталось: ${room.peers.size})`);
       if (room.peers.size === 0) destroyRoom(currentRoom);
     }
@@ -237,19 +307,19 @@ wss.on('connection', (ws) => {
           roomTTL: room.ttl,
           roomRemaining: Math.max(0, room.ttl - (Date.now() - room.createdAt))
         });
-        broadcast(code, { type: 'peer_joined', peerId }, peerId);
+        broadcastText(code, { type: 'peer_joined', peerId }, peerId);
         console.log(`[ROOM] ${peerId.slice(0, 8)} вошёл в "${code}" (${room.peers.size} участников)`);
         break;
       }
 
       // ---- Текстовый чат ----
       case 'chat':
-        broadcast(currentRoom, { type: 'chat', from: peerId, text: msg.text, timestamp: Date.now() });
+        broadcastText(currentRoom, { type: 'chat', from: peerId, text: msg.text, timestamp: Date.now() });
         break;
 
       // ---- Уведомление о файле ----
       case 'file_share':
-        broadcast(currentRoom, {
+        broadcastText(currentRoom, {
           type: 'file_share', from: peerId,
           fileName: msg.fileName, fileUrl: msg.fileUrl, fileSize: msg.fileSize, timestamp: Date.now()
         });
@@ -257,7 +327,7 @@ wss.on('connection', (ws) => {
 
       // ---- Контроль медиа (индикатор) ----
       case 'media_control':
-        broadcast(currentRoom, { type: 'media_control', from: peerId, kind: msg.kind, muted: msg.muted }, peerId);
+        broadcastText(currentRoom, { type: 'media_control', from: peerId, kind: msg.kind, muted: msg.muted }, peerId);
         break;
 
       // ---- Выход ----
@@ -279,6 +349,8 @@ wss.on('connection', (ws) => {
 // Запуск
 // ============================================================
 
+const PING_INTERVAL = 30000;
+
 if (httpsServer) {
   httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
     console.log(`  HTTP (редирект): http://0.0.0.0:${HTTP_PORT}`);
@@ -293,6 +365,20 @@ server.listen(httpsServer ? HTTPS_PORT : HTTP_PORT, '0.0.0.0', () => {
   console.log('  Голос: WebSocket binary relay');
   console.log('============================================');
 });
+
+// Ping/pong для обнаружения мёртвых соединений
+const pingTimer = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!ws.isAlive) {
+      console.log(`[PING] Мёртвое соединение, отключение`);
+      try { ws.terminate(); } catch (e) {}
+      return;
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch (e) {}
+  });
+}, PING_INTERVAL);
+wss.on('close', () => clearInterval(pingTimer));
 
 process.on('SIGINT', () => {
   rooms.forEach((room) => {
